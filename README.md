@@ -1,66 +1,274 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# How to upload image file to backblaze-b2 with native api in laravel10
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+- Thank you for the concepts https://grantwinney.com/what-is-backblaze-b2-api
 
-## About Laravel
+- Docs https://www.backblaze.com/apidocs/introduction-to-the-b2-native-api
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+<img src="https://f005.backblazeb2.com/file/piyawatdev/b2.jpg"/>
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 1. Install Laravel project
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```
+composer create-project laravel/laravel example-app
 
-## Learning Laravel
+cd example-app
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### 2. Install guzzlehttp
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+```
+composer require guzzlehttp/guzzle
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 3. In yout ENV file 
 
-## Laravel Sponsors
+```
+B2_ACCOUNT_ID = 
+B2_APPLICATION_KEY = 
+B2_BUCKET_NAME = 
+B2_BUCKET_ID = 
+B2_API = https://api.backblazeb2.com
+```
+### 4 Crate folder Commands in app/console
+<img src="https://f005.backblazeb2.com/file/piyawatdev/%E0%B8%AA%E0%B8%81%E0%B8%A3%E0%B8%B5%E0%B8%99%E0%B8%8A%E0%B9%87%E0%B8%AD%E0%B8%95+2024-02-26+224423.png"/>
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 5. Create command to refresh the token
 
-### Premium Partners
+```
+php artisan make:command RefreshB2Token
+```
+<img src="https://f005.backblazeb2.com/file/piyawatdev/%E0%B8%AA%E0%B8%81%E0%B8%A3%E0%B8%B5%E0%B8%99%E0%B8%8A%E0%B9%87%E0%B8%AD%E0%B8%95+2024-02-26+224830.png"/>
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+### 6. In your RefreshB2Token.php
 
-## Contributing
+```
+<?php
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+namespace App\Console\Commands;
 
-## Code of Conduct
+use Illuminate\Console\Command;
+use GuzzleHttp\Client;
+use Cache;
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+class RefreshB2Token extends Command
+{
+    protected $signature = 'b2:refresh-token';
+    protected $description = 'Refreshes the authorization token and upload URL from Backblaze B2';
 
-## Security Vulnerabilities
+    public function handle()
+    {
+        $authorizationToken = "";
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+        // Get authorization token and apiUrl using B2_ACCOUNT_ID and B2_APPLICATION_KEY
+        $b2 = new Client([
+            'base_uri' => env('B2_API'),
+            'headers' => [
+                'Authorization' => 'Basic ' . base64_encode(env('B2_ACCOUNT_ID') . ':' . env('B2_APPLICATION_KEY'))
+            ]
+        ]);
 
-## License
+        try {
+            $response = $b2->get('/b2api/v1/b2_authorize_account');
+            if ($response->getStatusCode() === 200) {
+                $res = $response->getBody()->getContents();
+                $responseData = json_decode($res, true);
+                $authorizationToken = $responseData['authorizationToken'];
+                $apiUrl = $responseData['apiUrl'];
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+                // Put it to cache
+                Cache::put('authorizationToken', $authorizationToken);
+                Cache::put('apiUrl', $apiUrl);
+
+                $this->uploadUrlAndAuthorization();
+            }
+
+        } catch (\Exception $e) {
+            return 'Failed to connect to Backblaze B2 API: ' . $e->getMessage();
+        }
+
+        $this->info('B2 Authorization token and Upload URL have been refreshed successfully.');
+    }
+
+    // Get uploadUrl and uploadUrl authorization token using authorizationToken and apiUrl
+    public function uploadUrlAndAuthorization()
+    {
+        try {
+
+            $apiUrl = env('apiUrl');
+            $b2 = new Client([
+                'base_uri' => $apiUrl,
+                'headers' => [
+                    'Authorization' => Cache::get('authorizationToken')
+                ]
+            ]);
+
+            $apiUrl = Cache::get('apiUrl');
+            $response = $b2->get($apiUrl .'/b2api/v3/b2_get_upload_url?bucketId='.env('B2_BUCKET_ID '));
+
+            if ($response->getStatusCode() === 200) {
+                $res = $response->getBody()->getContents();
+                $responseData = json_decode($res, true);
+                $uploadUrl = $responseData['uploadUrl'];
+                $authorizationTokenUrl = $responseData['authorizationToken'];
+
+                Cache::put('uploadUrl', $uploadUrl);
+                Cache::put('authorizationTokenUrl', $authorizationTokenUrl);
+            }
+
+        } catch (\Exception $e) {
+            return 'Fail to get authorization token and apiUrl' . $e->getMessage();
+        }
+    }
+}
+
+```
+### 7.  Create schedule for refresh your token in app\Console\Kernel.php
+
+```
+<?php
+
+namespace App\Console;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+
+class Kernel extends ConsoleKernel
+{
+    /**
+     * Define the application's command schedule.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        $schedule->command('b2:refresh-token')->hourly();
+    }
+
+    /**
+     * Register the commands for the application.
+     */
+    protected function commands(): void
+    {
+        $this->load(__DIR__ . '/Commands');
+
+        require base_path('routes/console.php');
+    }
+}
+
+```
+
+### 8. Create controller for testig
+```
+php artisan make:controller FileUploadController
+```
+
+
+### 9. In your FileUploadController.php
+```
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use GuzzleHttp\Client;
+use Cache;
+
+class FileUploadController extends Controller
+{
+    public function uploadToB2(Request $request)
+    {
+        $uploadUrl = Cache::get('uploadUrl');
+        $uploadUrlAuthorizationToken = Cache::get('authorizationTokenUrl');
+
+        if ($request->hasFile('file')) {
+
+            $file = $request->file('file');
+            $fileContent = file_get_contents($file->path());
+
+            $client = new Client([
+                'base_uri' => $uploadUrl,
+                'headers' => [
+                    'Authorization' => $uploadUrlAuthorizationToken,
+                    'Content-Type' => 'application/octet-stream',
+                    'X-Bz-File-Name' => $file->getClientOriginalName(),
+                    'X-Bz-Content-Sha1' => sha1_file($file->path()),
+                ],
+                'body' => $fileContent,
+            ]);
+
+            try {
+                $response = $client->post($uploadUrl);
+                if ($response->getStatusCode() === 200) {
+                    return 'File ' . $file->getClientOriginalName() . ' uploaded successfully.';
+                } else {
+                    return 'Failed to upload file ' . $file->getClientOriginalName();
+                }
+            } catch (\Exception $e) {
+                return 'Failed to upload file: ' . $e->getMessage();
+            }
+        } else {
+            return 'No files uploaded.';
+        }
+    }
+}
+
+```
+
+### 10. Edit your view welcome.blade.php
+
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload</title>
+</head>
+<body>
+    <h1>File Upload</h1>
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        @csrf
+        <input type="file" name="file">
+        <button type="submit">Upload</button>
+    </form>
+    <div id="response"></div>
+</body>
+</html>
+
+```
+### 11. Edit your route in web.php
+
+```
+<?php
+use App\Http\Controllers\FileUploadController;
+use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register web routes for your application. These
+| routes are loaded by the RouteServiceProvider and all of them will
+| be assigned to the "web" middleware group. Make something great!
+|
+*/
+
+Route::get('/', function () {
+    return view('welcome');
+});
+
+Route::post('/upload', [FileUploadController::class, 'uploadToB2']);
+
+```
+### 12. Testing create your token
+> You can using dd($uploadUrl,$uploadUrlAuthorizationToken) in your FileUploadController.php for sure.
+
+```
+php artisan b2:refresh-token
+```
+
+### The result 
+
+<img src="https://f005.backblazeb2.com/file/piyawatdev/example.gif"/>
+
+#### In my backblaze-b2
+<img src="https://f005.backblazeb2.com/file/piyawatdev/%E0%B8%AA%E0%B8%81%E0%B8%A3%E0%B8%B5%E0%B8%99%E0%B8%8A%E0%B9%87%E0%B8%AD%E0%B8%95+2024-02-26+230505.png"/>
