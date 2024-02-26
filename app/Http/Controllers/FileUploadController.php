@@ -11,16 +11,17 @@ class FileUploadController extends Controller
     public function uploadToB2(Request $request)
     {
         $uploadUrl = Cache::get('uploadUrl');
-        $authorizationTokenUrl = Cache::get('authorizationTokenUrl');
+        $uploadUrlAuthorizationToken = Cache::get('authorizationTokenUrl');
 
         if ($request->hasFile('file')) {
+
             $file = $request->file('file');
             $fileContent = file_get_contents($file->path());
 
             $client = new Client([
                 'base_uri' => $uploadUrl,
                 'headers' => [
-                    'Authorization' => $authorizationTokenUrl,
+                    'Authorization' => $uploadUrlAuthorizationToken,
                     'Content-Type' => 'application/octet-stream',
                     'X-Bz-File-Name' => $file->getClientOriginalName(),
                     'X-Bz-Content-Sha1' => sha1_file($file->path()),
