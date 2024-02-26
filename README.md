@@ -266,9 +266,11 @@ Route::post('/upload', [FileUploadController::class, 'uploadToB2']);
 php artisan b2:refresh-token
 ```
 
-### The result 
+### 13. Start your project and test upload image
 
-<img src="https://f005.backblazeb2.com/file/piyawatdev/example.gif"/>
+```
+php artisan serve
+```
 
 #### In my backblaze-b2
 <img src="https://f005.backblazeb2.com/file/piyawatdev/%E0%B8%AA%E0%B8%81%E0%B8%A3%E0%B8%B5%E0%B8%99%E0%B8%8A%E0%B9%87%E0%B8%AD%E0%B8%95+2024-02-26+230505.png"/>
